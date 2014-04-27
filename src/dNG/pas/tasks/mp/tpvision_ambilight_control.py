@@ -36,6 +36,8 @@ http://www.direct-netware.de/redirect.py?licenses;gpl
 ----------------------------------------------------------------------------
 NOTE_END //n"""
 
+# pylint: disable=import-error,no-name-in-module
+
 from time import localtime, sleep
 
 try:
@@ -49,12 +51,12 @@ except ImportError:
 	from urlparse import urlsplit
 #
 
-from dNG.data.json_parser import JsonParser
+from dNG.data.json_resource import JsonResource
 from dNG.data.rfc.http import Http
 from dNG.pas.data.binary import Binary
 from dNG.pas.data.settings import Settings
 from dNG.pas.data.logging.log_line import LogLine
-from dNG.pas.data.tasks.memory import Memory
+from dNG.pas.data.tasks.memory import Memory as MemoryTasks
 from dNG.pas.runtime.io_exception import IOException
 from dNG.pas.tasks.abstract_lrt_hook import AbstractLrtHook
 
@@ -140,6 +142,8 @@ Requests the TV to activate the internal Ambilight algorithm.
 :since:  v0.1.00
 		"""
 
+		# pylint: disable=broad-except
+
 		_return = False
 
 		try:
@@ -152,7 +156,7 @@ Requests the TV to activate the internal Ambilight algorithm.
 
 				while (menu_toggle_modes > 0):
 				#
-					http_response = http_client.request_post(JsonParser().data2json({ "key": "AmbilightOnOff" }))
+					http_response = http_client.request_post(JsonResource().data_to_json({ "key": "AmbilightOnOff" }))
 					if (is_menu_mode): sleep(TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
 
 					if (isinstance(http_response['body'], Exception)): menu_toggle_modes = 0
@@ -181,12 +185,12 @@ Requests the TV to activate the internal Ambilight algorithm.
 
 				if (is_menu_mode and _return):
 				#
-					http_response = http_client.request_post(JsonParser().data2json({ "key": "Confirm" }))
+					http_response = http_client.request_post(JsonResource().data_to_json({ "key": "Confirm" }))
 
 					if (isinstance(http_response['body'], BadStatusLine)):
 					# See "self.is_active()"
 						http_client = self._get_js_http_client("{0}/1/input/key".format(self.js_url))
-						http_client.request_post(JsonParser().data2json({ "key": "Confirm" }))
+						http_client.request_post(JsonResource().data_to_json({ "key": "Confirm" }))
 					#
 				#
 			#
@@ -205,6 +209,8 @@ Returns the current Ambilight state.
 :since:  v0.1.00
 		"""
 
+		# pylint: disable=broad-except
+
 		_return = None
 
 		try:
@@ -212,7 +218,7 @@ Returns the current Ambilight state.
 			http_client = self._get_js_http_client("{0}/1/ambilight/mode".format(self.js_url))
 			http_response = http_client.request_get()
 
-			json_response = (None if (isinstance(http_response['body'], Exception)) else JsonParser().json2data(Binary.str(http_response['body'])))
+			json_response = (None if (isinstance(http_response['body'], Exception)) else JsonResource().json_to_data(Binary.str(http_response['body'])))
 
 			if (json_response != None and "current" in json_response and json_response['current'] == "internal"):
 			#
@@ -230,7 +236,7 @@ connections.
 					http_response = http_client.request_get()
 				#
 
-				json_response = (None if (isinstance(http_response['body'], Exception)) else JsonParser().json2data(Binary.str(http_response['body'])))
+				json_response = (None if (isinstance(http_response['body'], Exception)) else JsonResource().json_to_data(Binary.str(http_response['body'])))
 				if (json_response == None): LogLine.debug("#echo(__FILEPATH__)# -TpvisionAmbilightControl.is_active({0})- reporting: Ambilight data not received".format(self.js_url))
 			#
 
@@ -293,6 +299,8 @@ Hook execution
 :since: v0.1.00
 		"""
 
+		# pylint: disable=broad-except
+
 		switch_on_hour = int(Settings.get("mp_plugins_tpvision_ambilight_control_switch_on_hour", 20))
 		switch_off_hour = int(Settings.get("mp_plugins_tpvision_ambilight_control_switch_off_hour", 8))
 
@@ -305,7 +313,7 @@ Hook execution
 			#
 				self.retries -= 1
 
-				if (self.retries > 0): Memory.get_instance().task_add(self.tid, self, TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
+				if (self.retries > 0): MemoryTasks.get_instance().task_add(self.tid, self, TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
 				else: LogLine.info("mp.plugins.tpvision_ambilight_control removed a TV in an unsupported or faulty state at '{0}'".format(url_data.hostname))
 			#
 			else:
@@ -348,7 +356,7 @@ after they have initialized and the jointSPACE server is up and responding.
 
 				self.last_state = is_ambilight_glowing
 
-				Memory.get_instance().task_add(self.tid, self, (TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME if (is_wake_up_mode) else TpvisionAmbilightControl.STATUS_CHANGE_RETRY_TIME))
+				MemoryTasks.get_instance().task_add(self.tid, self, (TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME if (is_wake_up_mode) else TpvisionAmbilightControl.STATUS_CHANGE_RETRY_TIME))
 			#
 		#
 		except Exception as handled_exception: LogLine.error(handled_exception)

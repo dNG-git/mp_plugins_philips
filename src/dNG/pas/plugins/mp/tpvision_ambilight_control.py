@@ -36,12 +36,14 @@ http://www.direct-netware.de/redirect.py?licenses;gpl
 ----------------------------------------------------------------------------
 NOTE_END //n"""
 
+# pylint: disable=import-error,no-name-in-module,unused-argument
+
 try: from urllib.parse import urlsplit
 except ImportError: from urlparse import urlsplit
 
 from dNG.pas.data.settings import Settings
 from dNG.pas.data.logging.log_line import LogLine
-from dNG.pas.data.tasks.memory import Memory
+from dNG.pas.data.tasks.memory import Memory as MemoryTasks
 from dNG.pas.module.named_loader import NamedLoader
 from dNG.pas.plugins.hooks import Hooks
 from dNG.pas.runtime.instance_lock import InstanceLock
@@ -60,10 +62,11 @@ Called for "dNG.pas.upnp.ControlPoint.deviceAdd"
 :param params: Parameter specified
 :param last_return: The return value from the last hook called.
 
-:since: v0.1.00
+:return: (mixed) Return value
+:since:  v0.1.00
 	"""
 
-	global _lock, _STATUS_CHANGE_SLEEP_TIME, _STATUS_INITIAL_RETRIES_MAX
+	# global: _lock, _STATUS_CHANGE_SLEEP_TIME, _STATUS_INITIAL_RETRIES_MAX
 	_return = False
 
 	identifier = params['identifier']
@@ -77,15 +80,17 @@ Called for "dNG.pas.upnp.ControlPoint.deviceAdd"
 		url_data = urlsplit(identifier['url_base'])
 		tid = (None if (url_data.hostname == None) else "dNG.pas.plugins.mp.tpvision_ambilight_control.{0}".format(url_data.hostname))
 
-		if (tid != None and (not Memory.get_instance().is_registered(tid))):
+		memory_tasks = MemoryTasks.get_instance()
+
+		if (tid != None and (not memory_tasks.is_registered(tid))):
 		#
 			# Task could be registered in another thread so check again
 			with _lock:
 			#
-				if (not Memory.get_instance().is_registered(tid)):
+				if (not memory_tasks.is_registered(tid)):
 				#
 					LogLine.info("mp.plugins.tpvision_ambilight_control found a Philips TV at '{0}'".format(url_data.hostname))
-					Memory.get_instance().task_add(tid, TpvisionAmbilightControl(tid, "http://{0}:1925".format(url_data.hostname)), 0)
+					memory_tasks.task_add(tid, TpvisionAmbilightControl(tid, "http://{0}:1925".format(url_data.hostname)), 0)
 				#
 			#
 
@@ -104,7 +109,8 @@ Called for "dNG.pas.upnp.ControlPoint.deviceRemove"
 :param params: Parameter specified
 :param last_return: The return value from the last hook called.
 
-:since: v0.1.00
+:return: (mixed) Return value
+:since:  v0.1.00
 	"""
 
 	_return = False
@@ -120,7 +126,7 @@ Called for "dNG.pas.upnp.ControlPoint.deviceRemove"
 		url_data = urlsplit(identifier['url_base'])
 		tid = (None if (url_data.hostname == None) else "dNG.pas.plugins.mp.tpvision_ambilight_control.{0}".format(url_data.hostname))
 
-		if (tid != None and Memory.unregister(tid)):
+		if (tid != None and MemoryTasks.get_instance().task_remove(tid)):
 		#
 			LogLine.info("mp.plugins.tpvision_ambilight_control lost a Philips TV at '{0}'".format(url_data.hostname))
 			_return = True
