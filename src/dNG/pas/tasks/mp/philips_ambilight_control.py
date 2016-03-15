@@ -2,15 +2,11 @@
 ##j## BOF
 
 """
-dNG.pas.tasks.mp.TpvisionAmbilightControl
-"""
-"""n// NOTE
-----------------------------------------------------------------------------
 MediaProvider
 A device centric multimedia solution
 ----------------------------------------------------------------------------
 (C) direct Netware Group - All rights reserved
-http://www.direct-netware.de/redirect.py?mp;core
+https://www.direct-netware.de/redirect?mp;plugins_philips
 
 The following license agreement remains valid unless any additions or
 changes are being made by direct Netware Group in a written form.
@@ -29,12 +25,11 @@ You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
 ----------------------------------------------------------------------------
-http://www.direct-netware.de/redirect.py?licenses;gpl
+https://www.direct-netware.de/redirect?licenses;gpl
 ----------------------------------------------------------------------------
-#echo(mpCoreVersion)#
+#echo(mpPluginsPhilipsVersion)#
 #echo(__FILEPATH__)#
-----------------------------------------------------------------------------
-NOTE_END //n"""
+"""
 
 # pylint: disable=import-error,no-name-in-module
 
@@ -52,26 +47,27 @@ except ImportError:
 #
 
 from dNG.data.json_resource import JsonResource
-from dNG.data.rfc.http import Http
+from dNG.net.http.client import Client as HttpClient
 from dNG.pas.data.binary import Binary
 from dNG.pas.data.settings import Settings
 from dNG.pas.data.logging.log_line import LogLine
 from dNG.pas.data.tasks.memory import Memory as MemoryTasks
+from dNG.pas.runtime.exception_log_trap import ExceptionLogTrap
 from dNG.pas.runtime.io_exception import IOException
 from dNG.pas.tasks.abstract_lrt_hook import AbstractLrtHook
 
-class TpvisionAmbilightControl(AbstractLrtHook):
+class PhilipsAmbilightControl(AbstractLrtHook):
 #
 	"""
-"TpvisionAmbilightControl" is a LRT hook because it waits an defined time
+"PhilipsAmbilightControl" is a LRT hook because it waits an defined time
 between state changes.
 
 :author:     direct Netware Group
 :copyright:  direct Netware Group - All rights reserved
 :package:    mp
-:subpackage: core
+:subpackage: plugins_philips
 :since:      v0.1.00
-:license:    http://www.direct-netware.de/redirect.py?licenses;gpl
+:license:    https://www.direct-netware.de/redirect?licenses;gpl
              GNU General Public License 2
 	"""
 
@@ -104,7 +100,7 @@ starting models.
 	def __init__(self, tid, js_url):
 	#
 		"""
-Constructor __init__(TpvisionAmbilightControl)
+Constructor __init__(PhilipsAmbilightControl)
 
 :since: v0.1.00
 		"""
@@ -119,7 +115,7 @@ jointSPACE base URL
 		"""
 Last Ambilight state known
 		"""
-		self.retries = TpvisionAmbilightControl.STATUS_INITIAL_RETRIES_MAX
+		self.retries = PhilipsAmbilightControl.STATUS_INITIAL_RETRIES_MAX
 		"""
 Initial retries for communication
 		"""
@@ -128,7 +124,7 @@ Initial retries for communication
 Task ID
 		"""
 
-		self.context_id = "dNG.pas.tasks.mp.TpvisionAmbilightControl"
+		self.context_id = "dNG.pas.tasks.mp.PhilipsAmbilightControl"
 	#
 
 	def _change_state(self, state_new = True):
@@ -152,14 +148,14 @@ Requests the TV to activate the internal Ambilight algorithm.
 			#
 				http_client = self._get_js_http_client("{0}/1/input/key".format(self.js_url))
 				is_menu_mode = False
-				menu_toggle_modes = TpvisionAmbilightControl.MENU_TOGGLE_MODES_MAX
+				menu_toggle_modes = PhilipsAmbilightControl.MENU_TOGGLE_MODES_MAX
 
 				while (menu_toggle_modes > 0):
 				#
 					http_response = http_client.request_post(JsonResource().data_to_json({ "key": "AmbilightOnOff" }))
-					if (is_menu_mode): sleep(TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
+					if (is_menu_mode): sleep(PhilipsAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
 
-					if (isinstance(http_response['body'], Exception)): menu_toggle_modes = 0
+					if (not http_response.is_readable()): menu_toggle_modes = 0
 					elif (self.is_active() == state_new):
 					#
 						menu_toggle_modes = 0
@@ -168,7 +164,7 @@ Requests the TV to activate the internal Ambilight algorithm.
 					elif (is_menu_mode): menu_toggle_modes -= 1
 					else:
 					#
-						sleep(TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
+						sleep(PhilipsAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
 
 						if (self.is_active() == state_new):
 						#
@@ -187,7 +183,7 @@ Requests the TV to activate the internal Ambilight algorithm.
 				#
 					http_response = http_client.request_post(JsonResource().data_to_json({ "key": "Confirm" }))
 
-					if (isinstance(http_response['body'], BadStatusLine)):
+					if (isinstance(http_response.get_exception(), BadStatusLine)):
 					# See "self.is_active()"
 						http_client = self._get_js_http_client("{0}/1/input/key".format(self.js_url))
 						http_client.request_post(JsonResource().data_to_json({ "key": "Confirm" }))
@@ -218,14 +214,17 @@ Returns the current Ambilight state.
 			http_client = self._get_js_http_client("{0}/1/ambilight/mode".format(self.js_url))
 			http_response = http_client.request_get()
 
-			json_response = (None if (isinstance(http_response['body'], Exception)) else JsonResource().json_to_data(Binary.str(http_response['body'])))
+			json_response = (JsonResource().json_to_data(Binary.str(http_response.read()))
+			                 if (http_response.is_readable()) else
+			                 None
+			                )
 
-			if (json_response != None and "current" in json_response and json_response['current'] == "internal"):
+			if (json_response is not None and json_response.get("current") == "internal"):
 			#
 				http_client.set_url("{0}/1/ambilight/processed".format(self.js_url))
 				http_response = http_client.request_get()
 
-				if (isinstance(http_response['body'], BadStatusLine)):
+				if (isinstance(http_response.get_exception(), BadStatusLine)):
 				#
 					"""
 Older jointSPACE servers do not accept the second request for keep-alive
@@ -236,11 +235,15 @@ connections.
 					http_response = http_client.request_get()
 				#
 
-				json_response = (None if (isinstance(http_response['body'], Exception)) else JsonResource().json_to_data(Binary.str(http_response['body'])))
-				if (json_response == None): LogLine.debug("#echo(__FILEPATH__)# -TpvisionAmbilightControl.is_active({0})- reporting: Ambilight data not received".format(self.js_url))
+				json_response = (JsonResource().json_to_data(Binary.str(http_response.read()))
+				                 if (http_response.is_readable()) else
+				                 None
+				                )
+
+				if (json_response is None): LogLine.debug("#echo(__FILEPATH__)# -{0!r}.is_active({1})- reporting: Ambilight data not received", self, self.js_url, context = "mp_plugins_philips_ambilight_control")
 			#
 
-			if (json_response != None):
+			if (json_response is not None):
 			#
 				_return = False
 
@@ -285,7 +288,7 @@ Returns a preconfigured jointSPACE HTTP client.
 :since:  v0.1.00
 		"""
 
-		_return = Http(url)
+		_return = HttpClient(url)
 		_return.set_header("Content-Type", "application/json")
 
 		return _return
@@ -299,22 +302,20 @@ Hook execution
 :since: v0.1.00
 		"""
 
-		# pylint: disable=broad-except
+		switch_on_hour = int(Settings.get("mp_plugins_philips_ambilight_control_switch_on_hour", 20))
+		switch_off_hour = int(Settings.get("mp_plugins_philips_ambilight_control_switch_off_hour", 8))
 
-		switch_on_hour = int(Settings.get("mp_plugins_tpvision_ambilight_control_switch_on_hour", 20))
-		switch_off_hour = int(Settings.get("mp_plugins_tpvision_ambilight_control_switch_off_hour", 8))
-
-		try:
+		with ExceptionLogTrap("mp_plugins_philips_ambilight_control"):
 		#
 			ambilight_active = self.is_active()
 			url_data = urlsplit(self.js_url)
 
-			if (ambilight_active == None):
+			if (ambilight_active is None):
 			#
 				self.retries -= 1
 
-				if (self.retries > 0): MemoryTasks.get_instance().task_add(self.tid, self, TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
-				else: LogLine.info("mp.plugins.tpvision_ambilight_control removed a TV in an unsupported or faulty state at '{0}'".format(url_data.hostname))
+				if (self.retries > 0): MemoryTasks.get_instance().add(self.tid, self, PhilipsAmbilightControl.STATUS_CHANGE_SLEEP_TIME)
+				else: LogLine.info("mp.plugins.philips_ambilight_control removed a TV in an unsupported or faulty state at '{0}'", url_data.hostname, context = "mp_plugins_philips_ambilight_control")
 			#
 			else:
 			#
@@ -338,28 +339,27 @@ Some models (like 2k12) change the Ambilight state to the last known value
 after they have initialized and the jointSPACE server is up and responding.
 				"""
 
-				if (self.retries > TpvisionAmbilightControl.STATUS_CHANGE_RETRIES_MAX):
+				if (self.retries > PhilipsAmbilightControl.STATUS_CHANGE_RETRIES_MAX):
 				#
 					is_wake_up_mode = True
 					self.retries -= 1
 				#
 				else: is_wake_up_mode = False
 
-				if (is_ambilight_glowing_requested == None): is_ambilight_glowing = (self.is_active() if (self.last_state == None and (not is_wake_up_mode)) else self.last_state)
+				if (is_ambilight_glowing_requested is None): is_ambilight_glowing = (self.is_active() if (self.last_state is None and (not is_wake_up_mode)) else self.last_state)
 				else:
 				#
 					is_ambilight_glowing = is_ambilight_glowing_requested
 
-					if (is_ambilight_glowing): LogLine.info("mp.plugins.tpvision_ambilight_control switched Ambilight on")
-					else: LogLine.info("mp.plugins.tpvision_ambilight_control switched Ambilight off")
+					if (is_ambilight_glowing): LogLine.info("mp.plugins.philips_ambilight_control switched Ambilight on", context = "mp_plugins_philips_ambilight_control")
+					else: LogLine.info("mp.plugins.philips_ambilight_control switched Ambilight off", context = "mp_plugins_philips_ambilight_control")
 				#
 
 				self.last_state = is_ambilight_glowing
 
-				MemoryTasks.get_instance().task_add(self.tid, self, (TpvisionAmbilightControl.STATUS_CHANGE_SLEEP_TIME if (is_wake_up_mode) else TpvisionAmbilightControl.STATUS_CHANGE_RETRY_TIME))
+				MemoryTasks.get_instance().add(self.tid, self, (PhilipsAmbilightControl.STATUS_CHANGE_SLEEP_TIME if (is_wake_up_mode) else PhilipsAmbilightControl.STATUS_CHANGE_RETRY_TIME))
 			#
 		#
-		except Exception as handled_exception: LogLine.error(handled_exception)
 	#
 #
 
