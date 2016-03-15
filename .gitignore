@@ -1,7 +1,7 @@
-_extras
 __py*
 .*
 *.pyc
-make*.py*
 nbproject
-vpmc_plugins.*
+/_extras
+/make*.py*
+/mp_plugins_philips.*

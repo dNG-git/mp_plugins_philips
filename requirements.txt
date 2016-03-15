@@ -1,0 +1,1 @@
+-e git+http://git.direct-netware.de/mp/core/#egg=mp_core
