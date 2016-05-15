@@ -51,8 +51,11 @@ from os import path
 
 with TemporaryDirectory(dir = ".") as build_directory:
 #
-	parameters = { "mpPluginsPhilipsVersion": get_version() }
+	parameters = { "install_data_plain_copy_extensions": "json",
+	               "mpPluginsPhilipsVersion": get_version()
+	             }
 
+	InstallData.add_install_data_callback(InstallData.plain_copy, [ "data" ])
 	InstallData.set_build_target_path(build_directory)
 	InstallData.set_build_target_parameters(parameters)
 
@@ -66,6 +69,8 @@ with TemporaryDirectory(dir = ".") as build_directory:
 	      author_email = "web@direct-netware.de",
 	      license = "GPLv2+",
 	      url = "https://www.direct-netware.de/redirect?mp;plugins_philips",
+
+	      platforms = [ "any" ],
 
 	      package_dir = { "": _build_path },
 	      packages = [ "dNG" ],
